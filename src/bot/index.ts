@@ -4,11 +4,10 @@ import { formatDate } from '../utils/dateHelper';
 import { 
   findUserByTelegramId, 
   createUser, 
-  updateUser, 
-  getAllUsersWithNotifications 
+  updateUser
 } from '../database/fileStorage';
-import { addTransactionRecord, getRecentTransactions, getAllTransactions, formatTransactionForMessage, calculateBalance } from '../services/googleSheets';
-import { parseTransactionWithValidation, formatTransactionInput, getTransactionExamples, validateAndParseAmount } from '../utils/messageParser';
+import { addTransactionRecord, getAllTransactions, calculateBalance } from '../services/googleSheets';
+import { parseTransactionWithValidation, getTransactionExamples, validateAndParseAmount } from '../utils/messageParser';
 import { forceCheckForNewTransactions } from '../services/notificationService';
 import { TransactionRecord, User, UserState, TransactionType } from '../types';
 
@@ -26,6 +25,7 @@ function getMainMenuKeyboard() {
       Markup.button.callback('🔔 Уведомления', 'notifications')
     ],
     [
+      Markup.button.url('📊 Таблица', `https://docs.google.com/spreadsheets/d/${botConfig.spreadsheetId}/edit`),
       Markup.button.callback('ℹ️ Помощь', 'help')
     ]
   ]);
@@ -60,9 +60,7 @@ async function setUserState(telegramId: number, state: UserState, transactionTyp
 
 async function clearUserState(telegramId: number) {
   await updateUser(telegramId, { 
-    state: 'idle', 
-    tempTransactionType: undefined, 
-    tempAmount: undefined 
+    state: 'idle'
   });
 }
 
@@ -231,18 +229,37 @@ async function handleHelpCommand(ctx: Context) {
   const helpMessage = `
 📖 Справка по RBI Bot:
 
-🎯 Основные функции:
-• Добавление транзакций с +/- знаками
-• Автоматический расчет баланса взаиморасчетов
-• Уведомления о новых операциях
-• Интеграция с Google Sheets
+🎯 **Основные функции:**
+• 💰 **Баланс** - просмотр текущего состояния взаиморасчетов
+• 📝 **История** - последние 10 транзакций с итоговым балансом
+• ➕ **Добавить** - пошаговое добавление новых операций
+• 🔔 **Уведомления** - настройка получения уведомлений
 
+🚀 **Как добавить транзакцию:**
+
+**Способ 1: Через кнопки (рекомендуется)**
+1️⃣ Нажмите "➕ Добавить"
+2️⃣ Выберите направление денег
+3️⃣ Введите сумму (например: 150 или 150.50)
+4️⃣ Введите описание (например: обед в кафе)
+
+**Способ 2: Быстрый ввод**
+Отправьте сообщение: \`сумма описание\`
 ${getTransactionExamples()}
 
-🔧 Дополнительные возможности:
-• Отправьте сообщение в формате "сумма описание" для быстрого добавления
-• Используйте + если даете деньги, - если берете деньги
-• Бот автоматически уведомляет о новых транзакциях
+💡 **Логика знаков:**
+• **+** (плюс) = ${botConfig.participants.dmitry} → ${botConfig.participants.alexander}
+• **-** (минус) = ${botConfig.participants.alexander} → ${botConfig.participants.dmitry}
+
+🔧 **Дополнительные команды:**
+• \`/menu\` - вызвать главное меню
+• \`/start\` - перезапустить бота
+
+📊 **Автоматические функции:**
+• ✅ Синхронизация с Google Sheets
+• ✅ Уведомления о новых транзакциях всем участникам
+• ✅ Автоматический расчет баланса с математическими формулами
+• ✅ Форматирование сумм с разделителями тысяч
 
 🏠 Главное меню:`;
   

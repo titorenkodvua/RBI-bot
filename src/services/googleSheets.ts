@@ -109,8 +109,6 @@ export function parseSheetRowToTransactionRecord(row: string[], index: number): 
 
   // Определяем тип операции по знаку суммы
   const transactionType: 'give' | 'take' = amount > 0 ? 'give' : 'take';
-  
-  console.log(`📊 Auto-detected type by amount sign: ${amount} -> ${transactionType}`);
 
   return {
     date,
@@ -126,12 +124,9 @@ export async function getAllTransactions(): Promise<TransactionRecord[]> {
     const data = await getSheetData();
     const records: TransactionRecord[] = [];
 
-    console.log(`📊 Total rows in sheet: ${data.values.length}`);
-    
     // Проверяем первую строку - заголовок это или данные
     if (data.values.length > 0) {
       const firstRow = data.values[0];
-      console.log(`🔍 First row: [${firstRow.join(', ')}]`);
       
       // Если первая строка содержит заголовки (Date, User, Amount, Description), пропускаем её
       const hasHeaders = firstRow.length >= 4 && 
@@ -141,7 +136,6 @@ export async function getAllTransactions(): Promise<TransactionRecord[]> {
                          firstRow[3].toLowerCase().includes('description'));
       
       const dataRows = hasHeaders ? data.values.slice(1) : data.values;
-      console.log(`📊 Processing ${dataRows.length} rows from sheet (headers detected: ${hasHeaders})`);
 
       for (let i = 0; i < dataRows.length; i++) {
         const record = parseSheetRowToTransactionRecord(dataRows[i], i + 1);
@@ -151,7 +145,7 @@ export async function getAllTransactions(): Promise<TransactionRecord[]> {
       }
     }
 
-    console.log(`✅ Successfully parsed ${records.length} transactions`);
+    // console.log(`✅ Successfully parsed ${records.length} transactions`);
     return records;
   } catch (error) {
     console.error('❌ Failed to get all transactions:', error);
@@ -185,17 +179,12 @@ export async function calculateBalance(): Promise<{ debtor: string; creditor: st
     const allTransactions = await getAllTransactions();
     let totalBalance = 0;
     
-    console.log(`💰 Calculating balance from ${allTransactions.length} transactions`);
-    
     for (const record of allTransactions) {
       // Если тип 'give' - значит положительная сумма (Дмитрий -> Александр)
       // Если тип 'take' - значит отрицательная сумма (Александр -> Дмитрий)
       const amount = record.type === 'give' ? record.amount : -record.amount;
       totalBalance += amount;
-      console.log(`📊 ${record.type === 'give' ? '+' : '-'}${record.amount} -> Total balance: ${totalBalance}`);
     }
-    
-    console.log(`🏁 Final balance: ${totalBalance}`);
     
     if (totalBalance > 0) {
       // Положительный баланс = Александр должен Дмитрию

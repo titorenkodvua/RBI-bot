@@ -1,5 +1,5 @@
 import * as cron from 'node-cron';
-import { getRowCount, getRecentTransactions, getAllTransactions, formatTransactionForMessage, calculateBalance } from './googleSheets';
+import { getRowCount, getAllTransactions, calculateBalance } from './googleSheets';
 import { getNotificationData, updateNotificationData, getAllUsersWithNotifications } from '../database/fileStorage';
 import { bot } from '../bot';
 import { botConfig } from '../config';
@@ -37,9 +37,6 @@ export function stopNotificationService(): void {
 
 async function checkForNewTransactions(): Promise<void> {
   try {
-    if (botConfig.debug) {
-      console.log('🔍 Checking for new transactions...');
-    }
 
     const allTransactions = await getAllTransactions();
     const currentRowCount = allTransactions.length;
@@ -52,9 +49,6 @@ async function checkForNewTransactions(): Promise<void> {
         lastChecked: new Date()
       });
       
-      if (botConfig.debug) {
-        console.log(`📊 Initial state saved: ${currentRowCount} transactions`);
-      }
       return;
     }
 
@@ -86,8 +80,6 @@ async function checkForNewTransactions(): Promise<void> {
         lastRowCount: currentRowCount,
         lastChecked: new Date()
       });
-    } else if (botConfig.debug) {
-      console.log('📊 No new transactions found');
     }
 
   } catch (error) {
