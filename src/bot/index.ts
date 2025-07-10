@@ -1,4 +1,4 @@
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf, Context, Markup } from 'telegraf';
 import { botConfig } from '../config';
 import { formatDate } from '../utils/dateHelper';
 import { 
@@ -13,6 +13,23 @@ import { forceCheckForNewTransactions } from '../services/notificationService';
 import { TransactionRecord, User } from '../types';
 
 const bot = new Telegraf(botConfig.token);
+
+// Функция для создания главного меню
+function getMainMenuKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('💰 Баланс', 'balance'),
+      Markup.button.callback('📝 История', 'history')
+    ],
+    [
+      Markup.button.callback('➕ Добавить', 'add'),
+      Markup.button.callback('🔔 Уведомления', 'notifications')
+    ],
+    [
+      Markup.button.callback('ℹ️ Помощь', 'help')
+    ]
+  ]);
+}
 
 // Middleware для проверки пользователя
 bot.use(async (ctx, next) => {
@@ -50,70 +67,22 @@ bot.command('start', async (ctx) => {
 👤 Пользователь: ${user.firstName}${user.username ? ` (@${user.username})` : ''}
 ${user.isAdmin ? '👑 Администратор' : ''}
 
-📋 Доступные команды:
-/add - Добавить новую транзакцию
-/balance - Показать баланс взаиморасчетов
-/history - Показать последние записи
-/notifications - Настроить уведомления
-/help - Помощь
-
-${getTransactionExamples()}
-`;
+Выберите действие:`;
   
-  await ctx.reply(welcomeMessage);
+  await ctx.reply(welcomeMessage, getMainMenuKeyboard());
 });
 
-// Команда /help
-bot.command('help', async (ctx) => {
-  const helpMessage = `
-📖 Справка по командам:
-
-/start - Начать работу с ботом
-/add <сумма> <описание> - Добавить транзакцию
-/balance - Показать текущий баланс взаиморасчетов
-/history - Показать последние 10 записей
-/notifications on/off - Включить/выключить уведомления
-
-${getTransactionExamples()}
-
-🔧 Дополнительные возможности:
-• Отправьте сообщение в формате "сумма описание" для быстрого добавления
-• Используйте + если даете деньги, - если берете деньги
-• Бот автоматически уведомляет о новых транзакциях
-`;
-  
-  await ctx.reply(helpMessage);
-});
-
-// Команда /add
-bot.command('add', async (ctx) => {
-  const message = ctx.message.text.replace('/add', '').trim();
-  
-  if (!message) {
-    await ctx.reply(`
-❌ Укажите сумму и описание после команды.
-
-Пример: /add 1000 перевод на карту
-
-${getTransactionExamples()}
-`);
-    return;
-  }
-
-  await handleTransactionInput(ctx, message);
-});
-
-// Команда /balance
-bot.command('balance', async (ctx) => {
+// Вспомогательные функции для команд
+async function handleBalanceCommand(ctx: Context) {
   try {
     const balance = await calculateBalance();
     
     if (balance.amount === 0) {
-      await ctx.reply('⚖️ Баланс равен нулю. Никто никому не должен!');
+      await ctx.reply('⚖️ Баланс равен нулю. Никто никому не должен!', 
+        Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
       return;
     }
 
-    // Форматируем сумму с запятыми для тысяч
     const formattedAmount = balance.amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -125,43 +94,39 @@ bot.command('balance', async (ctx) => {
 ${balance.debtor === botConfig.participants.dmitry ? '💸' : '💰'} ${balance.description}: ${botConfig.currency.symbol}${formattedAmount}
 `;
 
-    await ctx.reply(balanceMessage);
+    await ctx.reply(balanceMessage, 
+      Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
   } catch (error) {
     console.error('Error getting balance:', error);
     await ctx.reply('❌ Ошибка при получении баланса');
   }
-});
+}
 
-// Команда /history
-bot.command('history', async (ctx) => {
+async function handleHistoryCommand(ctx: Context) {
   try {
     const allTransactions = await getAllTransactions();
     
     if (allTransactions.length === 0) {
-      await ctx.reply('📝 Записей пока нет');
+      await ctx.reply('📝 Записей пока нет',
+        Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
       return;
     }
 
-    // Показываем последние 10 записей в том же порядке что и в таблице (новые внизу)
     const recentTransactions = allTransactions.slice(-10);
     
-    // Экранируем символ доллара для HTML
     const currencySymbol = botConfig.currency.symbol === '$' ? '&#36;' : botConfig.currency.symbol;
     let codeBlock = `Дата            Сумма Описание\n`;
     codeBlock += `---------- ------------- --------\n`;
     
     recentTransactions.forEach((transaction) => {
-      // Форматируем сумму со знаком
       const sign = transaction.type === 'give' ? '+' : '-';
       const formattedAmount = transaction.amount.toLocaleString('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });
       
-      // Форматируем строку с фиксированной шириной колонок
       const date = transaction.date.padEnd(10);
       const amount = `${sign}${formattedAmount}`.padStart(13);
-      // Ограничиваем описание до 20 символов для избежания переноса
       const description = transaction.description.length > 20 
         ? transaction.description.substring(0, 17) + '...'
         : transaction.description;
@@ -175,7 +140,6 @@ bot.command('history', async (ctx) => {
       historyMessage += `\n\n... и еще ${allTransactions.length - 10} транзакций`;
     }
 
-    // Добавляем итоговый баланс
     const currentBalance = await calculateBalance();
     if (currentBalance.amount === 0) {
       historyMessage += `\n\n⚖️ Итоговый баланс: ${currencySymbol}0.00`;
@@ -188,11 +152,153 @@ bot.command('history', async (ctx) => {
       historyMessage += `\n\n⚖️ Итоговый баланс: ${sign}${currencySymbol}${formattedBalance}`;
     }
 
-    await ctx.reply(historyMessage, { parse_mode: 'HTML' });
+    await ctx.reply(historyMessage, { 
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]])
+    });
   } catch (error) {
     console.error('Error getting history:', error);
     await ctx.reply('❌ Ошибка при получении истории');
   }
+}
+
+async function handleNotificationsCommand(ctx: Context & { user?: User }) {
+  const user = ctx.user!;
+  const status = user.notificationsEnabled ? 'включены' : 'выключены';
+  
+  const message = `
+🔔 Уведомления сейчас ${status}
+
+Что вы хотите сделать?`;
+
+  const keyboard = Markup.inlineKeyboard([
+    [
+      Markup.button.callback(user.notificationsEnabled ? '🔕 Выключить' : '🔔 Включить', 
+        user.notificationsEnabled ? 'notifications_off' : 'notifications_on')
+    ],
+    [Markup.button.callback('🏠 Главное меню', 'main_menu')]
+  ]);
+
+  await ctx.reply(message, keyboard);
+}
+
+async function handleHelpCommand(ctx: Context) {
+  const helpMessage = `
+📖 Справка по RBI Bot:
+
+🎯 Основные функции:
+• Добавление транзакций с +/- знаками
+• Автоматический расчет баланса взаиморасчетов
+• Уведомления о новых операциях
+• Интеграция с Google Sheets
+
+${getTransactionExamples()}
+
+🔧 Дополнительные возможности:
+• Отправьте сообщение в формате "сумма описание" для быстрого добавления
+• Используйте + если даете деньги, - если берете деньги
+• Бот автоматически уведомляет о новых транзакциях
+`;
+  
+  await ctx.reply(helpMessage, 
+    Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+}
+
+// Обработчики callback queries (кнопки)
+bot.action('balance', async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleBalanceCommand(ctx);
+});
+
+bot.action('history', async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleHistoryCommand(ctx);
+});
+
+bot.action('add', async (ctx) => {
+  await ctx.answerCbQuery();
+  const message = `
+➕ Добавить новую транзакцию
+
+${getTransactionExamples()}
+
+Отправьте сообщение в формате: <сумма> <описание>
+Например: 150 обед в кафе`;
+  
+  await ctx.reply(message, Markup.inlineKeyboard([
+    [Markup.button.callback('🏠 Главное меню', 'main_menu')]
+  ]));
+});
+
+bot.action('notifications', async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleNotificationsCommand(ctx);
+});
+
+bot.action('help', async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleHelpCommand(ctx);
+});
+
+bot.action('main_menu', async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.reply('🏠 Главное меню:', getMainMenuKeyboard());
+});
+
+// Обработчики для включения/выключения уведомлений
+bot.action('notifications_on', async (ctx) => {
+  await ctx.answerCbQuery();
+  await updateUser(ctx.user!.telegramId, { notificationsEnabled: true });
+  await ctx.reply('🔔 Уведомления включены', 
+    Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+});
+
+bot.action('notifications_off', async (ctx) => {
+  await ctx.answerCbQuery();
+  await updateUser(ctx.user!.telegramId, { notificationsEnabled: false });
+  await ctx.reply('🔕 Уведомления выключены',
+    Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+});
+
+// Команда /help
+bot.command('help', async (ctx) => {
+  await handleHelpCommand(ctx);
+});
+
+// Команда /menu - быстрый доступ к главному меню
+bot.command('menu', async (ctx) => {
+  await ctx.reply('🏠 Главное меню:', getMainMenuKeyboard());
+});
+
+// Команда /add
+bot.command('add', async (ctx) => {
+  const message = ctx.message.text.replace('/add', '').trim();
+  
+  if (!message) {
+    await ctx.reply(`
+➕ Добавить новую транзакцию
+
+${getTransactionExamples()}
+
+Отправьте сообщение в формате: <сумма> <описание>
+Например: 150 обед в кафе`,
+    Markup.inlineKeyboard([
+      [Markup.button.callback('🏠 Главное меню', 'main_menu')]
+    ]));
+    return;
+  }
+
+  await handleTransactionInput(ctx, message);
+});
+
+// Команда /balance
+bot.command('balance', async (ctx) => {
+  await handleBalanceCommand(ctx);
+});
+
+// Команда /history
+bot.command('history', async (ctx) => {
+  await handleHistoryCommand(ctx);
 });
 
 // Команда /notifications
@@ -201,15 +307,7 @@ bot.command('notifications', async (ctx) => {
   const action = args[1]?.toLowerCase();
   
   if (!action || (action !== 'on' && action !== 'off')) {
-    const user = ctx.user!;
-    const status = user.notificationsEnabled ? 'включены' : 'выключены';
-    await ctx.reply(`
-🔔 Уведомления сейчас ${status}
-
-Использование:
-/notifications on - Включить уведомления
-/notifications off - Выключить уведомления
-`);
+    await handleNotificationsCommand(ctx);
     return;
   }
 
@@ -218,18 +316,24 @@ bot.command('notifications', async (ctx) => {
   
   const status = enabled ? 'включены' : 'выключены';
   const emoji = enabled ? '🔔' : '🔕';
-  await ctx.reply(`${emoji} Уведомления ${status}`);
+  await ctx.reply(`${emoji} Уведомления ${status}`,
+    Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
 });
 
-// Обработка текстовых сообщений (добавление записей)
+// Обработка неизвестных команд
 bot.on('text', async (ctx) => {
   const message = ctx.message.text;
   
-  // Игнорируем команды, которые уже обработаны
+  // Обрабатываем неизвестные команды
   if (message.startsWith('/')) {
+    await ctx.reply(
+      '❓ Неизвестная команда. Используйте главное меню:',
+      getMainMenuKeyboard()
+    );
     return;
   }
   
+  // Обычные сообщения обрабатываем как транзакции
   await handleTransactionInput(ctx, message);
 });
 
@@ -240,8 +344,8 @@ async function handleTransactionInput(ctx: Context & { user?: User }, message: s
     await ctx.reply(`
 ❌ ${result.error}
 
-${getTransactionExamples()}
-`);
+${getTransactionExamples()}`,
+    Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
     return;
   }
 
@@ -262,7 +366,9 @@ ${getTransactionExamples()}
     await addTransactionRecord(transactionRecord);
     
     // Простое подтверждение - детали придут в уведомлении
-    await ctx.reply('✅ Транзакция успешно добавлена');
+    await ctx.reply('✅ Транзакция успешно добавлена',
+      Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]])
+    );
     
     // Небольшая задержка для синхронизации с Google Sheets
     setTimeout(async () => {
@@ -272,7 +378,8 @@ ${getTransactionExamples()}
     
   } catch (error) {
     console.error('Error adding transaction:', error);
-    await ctx.reply('❌ Ошибка при добавлении транзакции');
+    await ctx.reply('❌ Ошибка при добавлении транзакции',
+      Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
   }
 }
 
