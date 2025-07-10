@@ -1,0 +1,32 @@
+{
+  "name": "rbi-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for managing shared expenses in Google Sheets",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "setup": "./scripts/setup.sh",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
+  },
+  "keywords": ["telegram", "bot", "google-sheets", "expenses"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "telegraf": "^4.15.6",
+    "googleapis": "^126.0.1",
+    "dotenv": "^16.3.1",
+    "date-fns": "^2.30.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.3.3",
+    "tsx": "^4.6.2"
+  }
+} 
