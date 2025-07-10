@@ -6,7 +6,7 @@ import { botConfig } from '../config';
  * @param amountStr - строка с суммой
  * @returns объект с результатом валидации
  */
-function validateAndParseAmount(amountStr: string): { isValid: boolean; amount?: number; error?: string } {
+export function validateAndParseAmount(amountStr: string): { isValid: boolean; amount?: number; error?: string } {
   if (!amountStr || amountStr.trim() === '') {
     return { isValid: false, error: 'Сумма не может быть пустой' };
   }

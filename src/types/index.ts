@@ -8,6 +8,8 @@ export type TransactionRecord = {
   type: TransactionType;
 };
 
+export type UserState = 'idle' | 'waiting_for_amount' | 'waiting_for_description';
+
 export type User = {
   telegramId: number;
   username?: string | undefined;
@@ -17,6 +19,10 @@ export type User = {
   notificationsEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Поля для пошагового добавления транзакций
+  state?: UserState;
+  tempTransactionType?: TransactionType;
+  tempAmount?: number;
 };
 
 export type BotConfig = {

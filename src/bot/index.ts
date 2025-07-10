@@ -8,9 +8,9 @@ import {
   getAllUsersWithNotifications 
 } from '../database/fileStorage';
 import { addTransactionRecord, getRecentTransactions, getAllTransactions, formatTransactionForMessage, calculateBalance } from '../services/googleSheets';
-import { parseTransactionWithValidation, formatTransactionInput, getTransactionExamples } from '../utils/messageParser';
+import { parseTransactionWithValidation, formatTransactionInput, getTransactionExamples, validateAndParseAmount } from '../utils/messageParser';
 import { forceCheckForNewTransactions } from '../services/notificationService';
-import { TransactionRecord, User } from '../types';
+import { TransactionRecord, User, UserState, TransactionType } from '../types';
 
 const bot = new Telegraf(botConfig.token);
 
@@ -29,6 +29,45 @@ function getMainMenuKeyboard() {
       Markup.button.callback('ℹ️ Помощь', 'help')
     ]
   ]);
+}
+
+// Функция для создания меню выбора типа операции
+function getTransactionTypeKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(`💰 ${botConfig.participants.dmitry} → ${botConfig.participants.alexander} (+)`, 'add_give')
+    ],
+    [
+      Markup.button.callback(`💸 ${botConfig.participants.alexander} → ${botConfig.participants.dmitry} (-)`, 'add_take')
+    ],
+    [
+      Markup.button.callback('🏠 Главное меню', 'main_menu')
+    ]
+  ]);
+}
+
+// Функции для управления состоянием пользователя
+async function setUserState(telegramId: number, state: UserState, transactionType?: TransactionType, amount?: number) {
+  const updates: Partial<User> = { state };
+  if (transactionType !== undefined) {
+    updates.tempTransactionType = transactionType;
+  }
+  if (amount !== undefined) {
+    updates.tempAmount = amount;
+  }
+  await updateUser(telegramId, updates);
+}
+
+async function clearUserState(telegramId: number) {
+  await updateUser(telegramId, { 
+    state: 'idle', 
+    tempTransactionType: undefined, 
+    tempAmount: undefined 
+  });
+}
+
+function getUserState(user: User): UserState {
+  return user.state || 'idle';
 }
 
 // Middleware для проверки пользователя
@@ -78,8 +117,10 @@ async function handleBalanceCommand(ctx: Context) {
     const balance = await calculateBalance();
     
     if (balance.amount === 0) {
-      await ctx.reply('⚖️ Баланс равен нулю. Никто никому не должен!', 
-        Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+      const message = `⚖️ Баланс равен нулю. Никто никому не должен!
+
+🏠 Главное меню:`;
+      await ctx.reply(message, getMainMenuKeyboard());
       return;
     }
 
@@ -92,10 +133,10 @@ async function handleBalanceCommand(ctx: Context) {
 ⚖️ Текущий баланс взаиморасчетов:
 
 ${balance.debtor === botConfig.participants.dmitry ? '💸' : '💰'} ${balance.description}: ${botConfig.currency.symbol}${formattedAmount}
-`;
 
-    await ctx.reply(balanceMessage, 
-      Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+🏠 Главное меню:`;
+
+    await ctx.reply(balanceMessage, getMainMenuKeyboard());
   } catch (error) {
     console.error('Error getting balance:', error);
     await ctx.reply('❌ Ошибка при получении баланса');
@@ -107,8 +148,10 @@ async function handleHistoryCommand(ctx: Context) {
     const allTransactions = await getAllTransactions();
     
     if (allTransactions.length === 0) {
-      await ctx.reply('📝 Записей пока нет',
-        Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+      const message = `📝 Записей пока нет
+
+🏠 Главное меню:`;
+      await ctx.reply(message, getMainMenuKeyboard());
       return;
     }
 
@@ -152,9 +195,11 @@ async function handleHistoryCommand(ctx: Context) {
       historyMessage += `\n\n⚖️ Итоговый баланс: ${sign}${currencySymbol}${formattedBalance}`;
     }
 
+    historyMessage += `\n\n🏠 Главное меню:`;
+
     await ctx.reply(historyMessage, { 
       parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]])
+      ...getMainMenuKeyboard()
     });
   } catch (error) {
     console.error('Error getting history:', error);
@@ -198,10 +243,10 @@ ${getTransactionExamples()}
 • Отправьте сообщение в формате "сумма описание" для быстрого добавления
 • Используйте + если даете деньги, - если берете деньги
 • Бот автоматически уведомляет о новых транзакциях
-`;
+
+🏠 Главное меню:`;
   
-  await ctx.reply(helpMessage, 
-    Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
+  await ctx.reply(helpMessage, getMainMenuKeyboard());
 }
 
 // Обработчики callback queries (кнопки)
@@ -220,14 +265,9 @@ bot.action('add', async (ctx) => {
   const message = `
 ➕ Добавить новую транзакцию
 
-${getTransactionExamples()}
-
-Отправьте сообщение в формате: <сумма> <описание>
-Например: 150 обед в кафе`;
+Выберите тип операции:`;
   
-  await ctx.reply(message, Markup.inlineKeyboard([
-    [Markup.button.callback('🏠 Главное меню', 'main_menu')]
-  ]));
+  await ctx.reply(message, getTransactionTypeKeyboard());
 });
 
 bot.action('notifications', async (ctx) => {
@@ -260,6 +300,43 @@ bot.action('notifications_off', async (ctx) => {
     Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
 });
 
+// Обработчики для пошагового добавления транзакций
+bot.action('add_give', async (ctx) => {
+  await ctx.answerCbQuery();
+  await setUserState(ctx.user!.telegramId, 'waiting_for_amount', 'give');
+  
+  const message = `
+💰 ${botConfig.participants.dmitry} → ${botConfig.participants.alexander} (+)
+
+Введите сумму в долларах:
+Например: 150 или 150.50`;
+  
+  await ctx.reply(message, Markup.inlineKeyboard([
+    [Markup.button.callback('❌ Отмена', 'cancel_add')]
+  ]));
+});
+
+bot.action('add_take', async (ctx) => {
+  await ctx.answerCbQuery();
+  await setUserState(ctx.user!.telegramId, 'waiting_for_amount', 'take');
+  
+  const message = `
+💸 ${botConfig.participants.alexander} → ${botConfig.participants.dmitry} (-)
+
+Введите сумму в долларах:
+Например: 150 или 150.50`;
+  
+  await ctx.reply(message, Markup.inlineKeyboard([
+    [Markup.button.callback('❌ Отмена', 'cancel_add')]
+  ]));
+});
+
+bot.action('cancel_add', async (ctx) => {
+  await ctx.answerCbQuery();
+  await clearUserState(ctx.user!.telegramId);
+  await ctx.reply('❌ Добавление транзакции отменено', getMainMenuKeyboard());
+});
+
 // Команда /help
 bot.command('help', async (ctx) => {
   await handleHelpCommand(ctx);
@@ -275,19 +352,17 @@ bot.command('add', async (ctx) => {
   const message = ctx.message.text.replace('/add', '').trim();
   
   if (!message) {
-    await ctx.reply(`
+    // Запускаем пошаговое добавление
+    const responseMessage = `
 ➕ Добавить новую транзакцию
 
-${getTransactionExamples()}
-
-Отправьте сообщение в формате: <сумма> <описание>
-Например: 150 обед в кафе`,
-    Markup.inlineKeyboard([
-      [Markup.button.callback('🏠 Главное меню', 'main_menu')]
-    ]));
+Выберите тип операции:`;
+    
+    await ctx.reply(responseMessage, getTransactionTypeKeyboard());
     return;
   }
 
+  // Если есть параметры, обрабатываем в старом формате
   await handleTransactionInput(ctx, message);
 });
 
@@ -320,12 +395,19 @@ bot.command('notifications', async (ctx) => {
     Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
 });
 
-// Обработка неизвестных команд
+// Обработка текстовых сообщений с учетом состояния пользователя
 bot.on('text', async (ctx) => {
   const message = ctx.message.text;
+  const user = ctx.user!;
+  const userState = getUserState(user);
   
   // Обрабатываем неизвестные команды
   if (message.startsWith('/')) {
+    // Если пользователь в процессе добавления транзакции, сбрасываем состояние
+    if (userState !== 'idle') {
+      await clearUserState(user.telegramId);
+    }
+    
     await ctx.reply(
       '❓ Неизвестная команда. Используйте главное меню:',
       getMainMenuKeyboard()
@@ -333,9 +415,124 @@ bot.on('text', async (ctx) => {
     return;
   }
   
-  // Обычные сообщения обрабатываем как транзакции
-  await handleTransactionInput(ctx, message);
+  // Обрабатываем сообщения в зависимости от состояния пользователя
+  switch (userState) {
+    case 'waiting_for_amount':
+      await handleAmountInput(ctx, message);
+      break;
+    case 'waiting_for_description':
+      await handleDescriptionInput(ctx, message);
+      break;
+    case 'idle':
+    default:
+      // Обычные сообщения обрабатываем как транзакции (старый формат)
+      await handleTransactionInput(ctx, message);
+      break;
+  }
 });
+
+// Обработчик ввода суммы в пошаговом режиме
+async function handleAmountInput(ctx: Context & { user?: User }, message: string) {
+  const user = ctx.user!;
+  const amountStr = message.trim();
+  
+  // Валидируем сумму (используем функцию из messageParser)
+  const { isValid, amount, error } = validateAndParseAmount(amountStr);
+  
+  if (!isValid) {
+    await ctx.reply(`
+❌ ${error}
+
+Попробуйте еще раз. Введите сумму в долларах:
+Например: 150 или 150.50`, 
+      Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_add')]]));
+    return;
+  }
+  
+  // Сохраняем сумму и переходим к следующему шагу
+  await setUserState(user.telegramId, 'waiting_for_description', user.tempTransactionType, amount);
+  
+  const typeEmoji = user.tempTransactionType === 'give' ? '💰' : '💸';
+  const typeText = user.tempTransactionType === 'give' 
+    ? `${botConfig.participants.dmitry} → ${botConfig.participants.alexander}` 
+    : `${botConfig.participants.alexander} → ${botConfig.participants.dmitry}`;
+  const formattedAmount = amount!.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  
+  const responseMessage = `
+${typeEmoji} ${typeText}: $${formattedAmount}
+
+Теперь введите описание транзакции:
+Например: обед в кафе, проезд, покупки`;
+  
+  await ctx.reply(responseMessage, Markup.inlineKeyboard([
+    [Markup.button.callback('❌ Отмена', 'cancel_add')]
+  ]));
+}
+
+// Обработчик ввода описания в пошаговом режиме
+async function handleDescriptionInput(ctx: Context & { user?: User }, message: string) {
+  const user = ctx.user!;
+  const description = message.trim();
+  
+  if (!description) {
+    await ctx.reply(`
+❌ Описание не может быть пустым
+
+Попробуйте еще раз. Введите описание транзакции:
+Например: обед в кафе, проезд, покупки`, 
+      Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_add')]]));
+    return;
+  }
+  
+  // Создаем транзакцию
+  try {
+    const userName = user.firstName || user.username || `User${user.telegramId}`;
+    
+    const transactionRecord: TransactionRecord = {
+      date: formatDate(new Date()),
+      user: userName,
+      amount: user.tempAmount!,
+      description,
+      type: user.tempTransactionType!
+    };
+
+    await addTransactionRecord(transactionRecord);
+    
+    // Очищаем состояние пользователя
+    await clearUserState(user.telegramId);
+    
+    // Отправляем подтверждение
+    const typeEmoji = user.tempTransactionType === 'give' ? '💰' : '💸';
+    const sign = user.tempTransactionType === 'give' ? '+' : '-';
+    const typeText = user.tempTransactionType === 'give' 
+      ? `${botConfig.participants.dmitry} → ${botConfig.participants.alexander}` 
+      : `${botConfig.participants.alexander} → ${botConfig.participants.dmitry}`;
+    const formattedAmount = user.tempAmount!.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    
+    await ctx.reply(`
+✅ Транзакция успешно добавлена!
+
+${typeEmoji} ${typeText} ${sign}$${formattedAmount}
+📝 ${description}`,
+      getMainMenuKeyboard());
+    
+    // Небольшая задержка для синхронизации с Google Sheets
+    setTimeout(async () => {
+      await forceCheckForNewTransactions();
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Error adding transaction:', error);
+    await clearUserState(user.telegramId);
+    await ctx.reply('❌ Ошибка при добавлении транзакции', getMainMenuKeyboard());
+  }
+}
 
 async function handleTransactionInput(ctx: Context & { user?: User }, message: string) {
   const result = parseTransactionWithValidation(message);
