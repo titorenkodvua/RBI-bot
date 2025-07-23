@@ -1,4 +1,4 @@
-import { formatDateTime } from './dateHelper';
+import { formatDateTimeWithSeconds } from './dateHelper';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -19,7 +19,7 @@ class Logger {
   }
 
   private formatMessage(level: string, message: string): string {
-    const timestamp = formatDateTime(new Date());
+    const timestamp = formatDateTimeWithSeconds(new Date());
     return `[${timestamp}] ${level}: ${message}`;
   }
 

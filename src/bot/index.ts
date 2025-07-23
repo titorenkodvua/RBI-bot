@@ -1,6 +1,7 @@
 import { Telegraf, Context, Markup } from 'telegraf';
 import { botConfig } from '../config';
 import { formatDate } from '../utils/dateHelper';
+import { logger } from '../utils/logger';
 import { 
   findUserByTelegramId, 
   createUser, 
@@ -86,7 +87,7 @@ bot.use(async (ctx, next) => {
       notificationsEnabled: true
     });
     
-    console.log(`✅ New user registered: ${user.firstName} (@${user.username})`);
+    logger.info(`✅ New user registered: ${user.firstName} (@${user.username})`);
   }
   
   ctx.user = user;
@@ -136,7 +137,7 @@ ${balance.debtor === botConfig.participants.dmitry ? '💸' : '💰'} ${balance.
 
     await ctx.reply(balanceMessage, getMainMenuKeyboard());
   } catch (error) {
-    console.error('Error getting balance:', error);
+    logger.error('Error getting balance:', error as Error);
     await ctx.reply('❌ Ошибка при получении баланса');
   }
 }
@@ -200,7 +201,7 @@ async function handleHistoryCommand(ctx: Context) {
       ...getMainMenuKeyboard()
     });
   } catch (error) {
-    console.error('Error getting history:', error);
+    logger.error('Error getting history:', error as Error);
     await ctx.reply('❌ Ошибка при получении истории');
   }
 }
@@ -516,6 +517,7 @@ async function handleDescriptionInput(ctx: Context & { user?: User }, message: s
       type: user.tempTransactionType!
     };
 
+    logger.info(`➕ Adding transaction: ${user.tempTransactionType === 'give' ? '+' : '-'}$${user.tempAmount} - ${description} by ${userName}`);
     await addTransactionRecord(transactionRecord);
     
     // Очищаем состояние пользователя
@@ -545,7 +547,7 @@ ${typeEmoji} ${typeText} ${sign}$${formattedAmount}
     }, 2000);
     
   } catch (error) {
-    console.error('Error adding transaction:', error);
+    logger.error('Error adding transaction:', error as Error);
     await clearUserState(user.telegramId);
     await ctx.reply('❌ Ошибка при добавлении транзакции', getMainMenuKeyboard());
   }
@@ -577,6 +579,7 @@ ${getTransactionExamples()}`,
       type: parsed.type
     };
 
+    logger.info(`➕ Adding transaction: ${parsed.type === 'give' ? '+' : '-'}$${parsed.amount} - ${parsed.description} by ${userName}`);
     await addTransactionRecord(transactionRecord);
     
     // Простое подтверждение - детали придут в уведомлении
@@ -591,7 +594,7 @@ ${getTransactionExamples()}`,
     }, 2000); // 2 секунды задержки
     
   } catch (error) {
-    console.error('Error adding transaction:', error);
+    logger.error('Error adding transaction:', error as Error);
     await ctx.reply('❌ Ошибка при добавлении транзакции',
       Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]));
   }

@@ -4,24 +4,25 @@ import { getNotificationData, updateNotificationData, getAllUsersWithNotificatio
 import { bot } from '../bot';
 import { botConfig } from '../config';
 import { formatTransactionInput } from '../utils/messageParser';
+import { logger } from '../utils/logger';
 
 let isMonitoringStarted = false;
 let cronTask: cron.ScheduledTask | null = null;
 
 export function startNotificationService(): void {
   if (isMonitoringStarted) {
-    console.log('⚠️ Notification service already started');
+    logger.warn('⚠️ Notification service already started');
     return;
   }
 
-  console.log(`📅 Starting notification service with interval: ${botConfig.notificationInterval}`);
+  logger.info(`📅 Starting notification service with interval: ${botConfig.notificationInterval}`);
   
   cronTask = cron.schedule(botConfig.notificationInterval, async () => {
     await checkForNewTransactions();
   });
 
   isMonitoringStarted = true;
-  console.log('✅ Notification service started');
+  logger.info('✅ Notification service started');
 }
 
 export function stopNotificationService(): void {
@@ -32,22 +33,22 @@ export function stopNotificationService(): void {
   cronTask.stop();
   cronTask = null;
   isMonitoringStarted = false;
-  console.log('🛑 Notification service stopped');
+  logger.info('🛑 Notification service stopped');
 }
 
 async function checkForNewTransactions(): Promise<void> {
   try {
-    console.log(`🔍 Checking for new transactions at ${new Date().toISOString()}`);
+    logger.debug(`🔍 Checking for new transactions at ${new Date().toISOString()}`);
     
     const allTransactions = await getAllTransactions();
     const currentRowCount = allTransactions.length;
     const notificationData = await getNotificationData();
 
-    console.log(`📊 Current state: ${currentRowCount} rows, last known: ${notificationData?.lastRowCount || 'none'}`);
+    logger.debug(`📊 Current state: ${currentRowCount} rows, last known: ${notificationData?.lastRowCount || 'none'}`);
 
     if (!notificationData) {
       // Первый запуск - сохраняем текущее состояние
-      console.log('🆕 First run - initializing notification data');
+      logger.info('🆕 First run - initializing notification data');
       await updateNotificationData({
         lastRowCount: currentRowCount,
         lastChecked: new Date()
@@ -58,7 +59,7 @@ async function checkForNewTransactions(): Promise<void> {
 
     if (currentRowCount > notificationData.lastRowCount) {
       const newTransactionsCount = currentRowCount - notificationData.lastRowCount;
-      console.log(`🆕 Found ${newTransactionsCount} new transaction(s)`);
+      logger.info(`🆕 Found ${newTransactionsCount} new transaction(s)`);
 
       // Получаем новые записи (последние добавленные)
       const newTransactions = allTransactions.slice(-newTransactionsCount);
@@ -74,7 +75,7 @@ async function checkForNewTransactions(): Promise<void> {
       });
     } else if (currentRowCount < notificationData.lastRowCount) {
       const deletedTransactionsCount = notificationData.lastRowCount - currentRowCount;
-      console.log(`🗑️ Detected ${deletedTransactionsCount} deleted transaction(s)`);
+      logger.info(`🗑️ Detected ${deletedTransactionsCount} deleted transaction(s)`);
 
       // Уведомляем об удалении строк
       await notifyUsersAboutDeletedTransactions(deletedTransactionsCount, currentRowCount);
@@ -85,16 +86,12 @@ async function checkForNewTransactions(): Promise<void> {
         lastChecked: new Date()
       });
     } else {
-      console.log('✅ No changes detected');
+      logger.debug('✅ No changes detected');
     }
 
   } catch (error) {
-    console.error('❌ Error checking for new transactions:', error);
-    console.error('❌ Error details:', {
-      message: error instanceof Error ? error.message : String(error),
-      code: (error as any)?.code,
-      status: (error as any)?.status
-    });
+    logger.error('❌ Error checking for new transactions:', error as Error);
+    logger.error(`❌ Error details: ${error instanceof Error ? error.message : String(error)}`);
     // НЕ обновляем состояние уведомлений при ошибке API
     // НЕ отправляем уведомления об удалении строк
     // Просто логируем ошибку и ждем следующего цикла
@@ -106,7 +103,7 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
     const users = await getAllUsersWithNotifications();
     
     if (users.length === 0) {
-      console.log('📱 No users with notifications enabled');
+      logger.debug('📱 No users with notifications enabled');
       return;
     }
 
@@ -211,17 +208,17 @@ ${balanceAfterStr}
           await bot.telegram.sendMessage(user.telegramId, message);
           
           if (botConfig.debug) {
-            console.log(`📤 Notification sent to ${user.firstName} (${user.telegramId})`);
+            logger.info(`📤 Notification sent to ${user.firstName} (${user.telegramId})`);
           }
         } catch (error) {
-          console.error(`❌ Failed to send notification to user ${user.telegramId}:`, error);
+          logger.error(`❌ Failed to send notification to user ${user.telegramId}:`, error as Error);
         }
       }
     }
 
-    console.log(`✅ Notifications sent for ${transactions.length} new transaction(s) to ${users.length} user(s)`);
+    logger.info(`✅ Notifications sent for ${transactions.length} new transaction(s) to ${users.length} user(s)`);
   } catch (error) {
-    console.error('❌ Error sending notifications:', error);
+    logger.error('❌ Error sending notifications:', error as Error);
   }
 }
 
@@ -230,7 +227,7 @@ async function notifyUsersAboutDeletedTransactions(deletedCount: number, current
     const users = await getAllUsersWithNotifications();
     
     if (users.length === 0) {
-      console.log('📱 No users with notifications enabled');
+      logger.debug('📱 No users with notifications enabled');
       return;
     }
 
@@ -265,22 +262,22 @@ async function notifyUsersAboutDeletedTransactions(deletedCount: number, current
         await bot.telegram.sendMessage(user.telegramId, message);
         
         if (botConfig.debug) {
-          console.log(`📤 Deletion notification sent to ${user.firstName} (${user.telegramId})`);
+          logger.info(`📤 Deletion notification sent to ${user.firstName} (${user.telegramId})`);
         }
       } catch (error) {
-        console.error(`❌ Failed to send deletion notification to user ${user.telegramId}:`, error);
+        logger.error(`❌ Failed to send deletion notification to user ${user.telegramId}:`, error as Error);
       }
     }
 
-    console.log(`✅ Deletion notifications sent to ${users.length} user(s)`);
+    logger.info(`✅ Deletion notifications sent to ${users.length} user(s)`);
   } catch (error) {
-    console.error('❌ Error sending deletion notifications:', error);
+    logger.error('❌ Error sending deletion notifications:', error as Error);
   }
 }
 
 // Функция для принудительной проверки (для тестирования)
 export async function forceCheckForNewTransactions(): Promise<void> {
-  console.log('🔍 Forced check for new transactions');
+  logger.info('🔍 Forced check for new transactions');
   await checkForNewTransactions();
 }
 
@@ -291,5 +288,5 @@ export async function resetNotificationData(): Promise<void> {
     lastRowCount: currentRowCount,
     lastChecked: new Date()
   });
-  console.log('🔄 Notification data reset');
+  logger.info('🔄 Notification data reset');
 } 

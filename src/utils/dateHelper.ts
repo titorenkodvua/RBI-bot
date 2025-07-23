@@ -9,6 +9,10 @@ export function formatDateTime(date: Date): string {
   return format(date, 'dd.MM.yyyy HH:mm', { locale: ru });
 }
 
+export function formatDateTimeWithSeconds(date: Date): string {
+  return format(date, 'dd.MM.yyyy HH:mm:ss', { locale: ru });
+}
+
 export function parseDate(dateString: string): Date | null {
   try {
     // Пробуем разные форматы

@@ -1,12 +1,13 @@
 import { validateConfig } from './config';
 import { connectDatabase, disconnectDatabase } from './database/fileStorage';
 import { initializeGoogleSheets } from './services/googleSheets';
-import { startNotificationService } from './services/notificationService';
+import { startNotificationService, stopNotificationService } from './services/notificationService';
 import { bot } from './bot';
+import { logger } from './utils/logger';
 
-async function startBot(): Promise<void> {
+async function startBot() {
   try {
-    console.log('🤖 Starting RBI Bot...');
+    logger.info('🤖 Starting RBI Bot...');
     
     // Проверяем конфигурацию
     validateConfig();
@@ -23,43 +24,46 @@ async function startBot(): Promise<void> {
     // Запускаем бота
     await bot.launch();
     
-    console.log('✅ RBI Bot started successfully!');
+    logger.info('✅ RBI Bot started successfully!');
     
-    // Graceful shutdown
-    process.once('SIGINT', () => shutdown('SIGINT'));
-    process.once('SIGTERM', () => shutdown('SIGTERM'));
+    // Обработка graceful shutdown
+    process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
     
   } catch (error) {
-    console.error('❌ Failed to start bot:', error);
+    logger.error('❌ Failed to start bot:', error as Error);
     process.exit(1);
   }
 }
 
-async function shutdown(signal: string): Promise<void> {
-  console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+async function gracefulShutdown(signal: string) {
+  logger.info(`\n🛑 Received ${signal}, shutting down gracefully...`);
   
   try {
+    // Останавливаем сервис уведомлений
+    stopNotificationService();
+    
     // Останавливаем бота
-    bot.stop(signal);
+    await bot.stop(signal);
     
     // Отключаемся от базы данных
     await disconnectDatabase();
     
-    console.log('✅ Shutdown completed');
+    logger.info('✅ Shutdown completed');
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error during shutdown:', error);
+    logger.error('❌ Error during shutdown:', error as Error);
     process.exit(1);
   }
 }
 
 // Обработка необработанных ошибок
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error(`❌ Unhandled Rejection at: ${promise}, reason: ${reason}`);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  logger.error('❌ Uncaught Exception:', error);
   process.exit(1);
 });
 

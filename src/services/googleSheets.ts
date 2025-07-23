@@ -1,6 +1,7 @@
 import { google, sheets_v4 } from 'googleapis';
 import { TransactionRecord, SheetData } from '../types';
 import { botConfig } from '../config';
+import { logger } from '../utils/logger';
 
 let sheetsService: sheets_v4.Sheets;
 
@@ -23,9 +24,9 @@ export async function initializeGoogleSheets(): Promise<void> {
 
     sheetsService = google.sheets({ version: 'v4', auth });
     
-    console.log('✅ Google Sheets API initialized');
+    logger.info('✅ Google Sheets API initialized');
   } catch (error) {
-    console.error('❌ Failed to initialize Google Sheets:', error);
+    logger.error('❌ Failed to initialize Google Sheets:', error as Error);
     throw error;
   }
 }
@@ -55,9 +56,9 @@ export async function addTransactionRecord(record: TransactionRecord): Promise<v
       }
     });
 
-    console.log(`✅ Added transaction record: ${record.type === 'give' ? '+' : '-'}${record.amount} - ${record.description}`);
+    logger.info(`✅ Added transaction record: ${record.type === 'give' ? '+' : '-'}${record.amount} - ${record.description}`);
   } catch (error) {
-    console.error('❌ Failed to add transaction record:', error);
+    logger.error('❌ Failed to add transaction record:', error as Error);
     throw error;
   }
 }
@@ -65,7 +66,7 @@ export async function addTransactionRecord(record: TransactionRecord): Promise<v
 export async function getSheetData(): Promise<SheetData> {
   try {
     const range = `${botConfig.sheetName}!A:D`;
-    console.log(`🟡 Google Sheets API request: ${range} at ${new Date().toISOString()}`);
+    logger.debug(`🟡 Google Sheets API request: ${range} at ${new Date().toISOString()}`);
     
     const response = await sheetsService.spreadsheets.values.get({
       spreadsheetId: botConfig.spreadsheetId,
@@ -73,19 +74,15 @@ export async function getSheetData(): Promise<SheetData> {
     });
 
     const rowCount = response.data.values?.length || 0;
-    console.log(`✅ Google Sheets API response: ${rowCount} rows`);
+    logger.debug(`✅ Google Sheets API response: ${rowCount} rows`);
 
     return {
       values: response.data.values || [],
       range
     };
   } catch (error) {
-    console.error('❌ Failed to get sheet data:', error);
-    console.error('❌ Error details:', {
-      message: error instanceof Error ? error.message : String(error),
-      code: (error as any)?.code,
-      status: (error as any)?.status
-    });
+    logger.error('❌ Failed to get sheet data:', error as Error);
+    logger.error(`❌ Error details: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
@@ -95,7 +92,7 @@ export async function getRowCount(): Promise<number | null> {
     const data = await getSheetData();
     return data.values.length;
   } catch (error) {
-    console.error('❌ Failed to get row count:', error);
+    logger.error('❌ Failed to get row count:', error as Error);
     return null; // Возвращаем null вместо 0 при ошибке
   }
 }
@@ -108,7 +105,7 @@ export async function getRowCountSafe(): Promise<number> {
 
 export function parseSheetRowToTransactionRecord(row: string[], index: number): TransactionRecord | null {
   if (row.length < 4) {
-    console.warn(`Row ${index + 1} has insufficient data`);
+    logger.warn(`Row ${index + 1} has insufficient data`);
     return null;
   }
 
@@ -119,7 +116,7 @@ export function parseSheetRowToTransactionRecord(row: string[], index: number): 
   const amount = parseFloat(normalizedAmountStr);
 
   if (isNaN(amount)) {
-    console.warn(`Invalid amount in row ${index + 1}: ${amountStr}`);
+    logger.warn(`Invalid amount in row ${index + 1}: ${amountStr}`);
     return null;
   }
 
@@ -161,10 +158,10 @@ export async function getAllTransactions(): Promise<TransactionRecord[]> {
       }
     }
 
-    // console.log(`✅ Successfully parsed ${records.length} transactions`);
+    // logger.debug(`✅ Successfully parsed ${records.length} transactions`);
     return records;
   } catch (error) {
-    console.error('❌ Failed to get all transactions:', error);
+    logger.error('❌ Failed to get all transactions:', error as Error);
     return [];
   }
 }
@@ -174,7 +171,7 @@ export async function getRecentTransactions(count: number = 10): Promise<Transac
     const allTransactions = await getAllTransactions();
     return allTransactions.slice(-count).reverse(); // Показываем новые записи первыми
   } catch (error) {
-    console.error('❌ Failed to get recent transactions:', error);
+    logger.error('❌ Failed to get recent transactions:', error as Error);
     return [];
   }
 }
@@ -227,7 +224,7 @@ export async function calculateBalance(): Promise<{ debtor: string; creditor: st
       };
     }
   } catch (error) {
-    console.error('❌ Failed to calculate balance:', error);
+    logger.error('❌ Failed to calculate balance:', error as Error);
     throw error;
   }
 } 

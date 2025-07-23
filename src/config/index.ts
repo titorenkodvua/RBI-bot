@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { BotConfig } from '../types';
+import { logger } from '../utils/logger';
 
 config();
 
@@ -50,5 +51,9 @@ export function validateConfig(): void {
     throw new Error('SPREADSHEET_ID is required');
   }
   
-  console.log('✅ Configuration validated successfully');
+  if (!botConfig.googleCredentialsPath) {
+    throw new Error('GOOGLE_CREDENTIALS_PATH is required');
+  }
+  
+  logger.info('✅ Configuration validated successfully');
 } 

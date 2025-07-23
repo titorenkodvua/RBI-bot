@@ -1,6 +1,7 @@
 import { User, NotificationData } from '../types';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { logger } from '../utils/logger';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -54,13 +55,26 @@ async function saveNotificationData(data: NotificationData): Promise<void> {
   await fs.writeFile(NOTIFICATIONS_FILE, JSON.stringify(data, null, 2));
 }
 
+// Подключение к базе данных
 export async function connectDatabase(): Promise<void> {
-  await ensureDataDir();
-  console.log('✅ Using file storage (JSON files)');
+  try {
+    // Создаем директории если их нет
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    
+    logger.info('✅ Using file storage (JSON files)');
+  } catch (error) {
+    logger.error('❌ Failed to connect to database:', error as Error);
+    throw error;
+  }
 }
 
+// Отключение от базы данных
 export async function disconnectDatabase(): Promise<void> {
-  console.log('👋 File storage disconnected');
+  try {
+    logger.info('👋 File storage disconnected');
+  } catch (error) {
+    logger.error('❌ Error disconnecting from database:', error as Error);
+  }
 }
 
 export async function findUserByTelegramId(telegramId: number): Promise<User | null> {
