@@ -65,10 +65,15 @@ export async function addTransactionRecord(record: TransactionRecord): Promise<v
 export async function getSheetData(): Promise<SheetData> {
   try {
     const range = `${botConfig.sheetName}!A:D`;
+    console.log(`🟡 Google Sheets API request: ${range} at ${new Date().toISOString()}`);
+    
     const response = await sheetsService.spreadsheets.values.get({
       spreadsheetId: botConfig.spreadsheetId,
       range
     });
+
+    const rowCount = response.data.values?.length || 0;
+    console.log(`✅ Google Sheets API response: ${rowCount} rows`);
 
     return {
       values: response.data.values || [],
@@ -76,18 +81,29 @@ export async function getSheetData(): Promise<SheetData> {
     };
   } catch (error) {
     console.error('❌ Failed to get sheet data:', error);
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      code: (error as any)?.code,
+      status: (error as any)?.status
+    });
     throw error;
   }
 }
 
-export async function getRowCount(): Promise<number> {
+export async function getRowCount(): Promise<number | null> {
   try {
     const data = await getSheetData();
     return data.values.length;
   } catch (error) {
     console.error('❌ Failed to get row count:', error);
-    return 0;
+    return null; // Возвращаем null вместо 0 при ошибке
   }
+}
+
+// Функция для обратной совместимости (возвращает 0 при ошибке)
+export async function getRowCountSafe(): Promise<number> {
+  const count = await getRowCount();
+  return count ?? 0;
 }
 
 export function parseSheetRowToTransactionRecord(row: string[], index: number): TransactionRecord | null {

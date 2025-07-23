@@ -1,5 +1,5 @@
 import * as cron from 'node-cron';
-import { getRowCount, getAllTransactions, calculateBalance } from './googleSheets';
+import { getRowCountSafe, getAllTransactions, calculateBalance } from './googleSheets';
 import { getNotificationData, updateNotificationData, getAllUsersWithNotifications } from '../database/fileStorage';
 import { bot } from '../bot';
 import { botConfig } from '../config';
@@ -37,13 +37,17 @@ export function stopNotificationService(): void {
 
 async function checkForNewTransactions(): Promise<void> {
   try {
-
+    console.log(`🔍 Checking for new transactions at ${new Date().toISOString()}`);
+    
     const allTransactions = await getAllTransactions();
     const currentRowCount = allTransactions.length;
     const notificationData = await getNotificationData();
 
+    console.log(`📊 Current state: ${currentRowCount} rows, last known: ${notificationData?.lastRowCount || 'none'}`);
+
     if (!notificationData) {
       // Первый запуск - сохраняем текущее состояние
+      console.log('🆕 First run - initializing notification data');
       await updateNotificationData({
         lastRowCount: currentRowCount,
         lastChecked: new Date()
@@ -80,10 +84,20 @@ async function checkForNewTransactions(): Promise<void> {
         lastRowCount: currentRowCount,
         lastChecked: new Date()
       });
+    } else {
+      console.log('✅ No changes detected');
     }
 
   } catch (error) {
     console.error('❌ Error checking for new transactions:', error);
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      code: (error as any)?.code,
+      status: (error as any)?.status
+    });
+    // НЕ обновляем состояние уведомлений при ошибке API
+    // НЕ отправляем уведомления об удалении строк
+    // Просто логируем ошибку и ждем следующего цикла
   }
 }
 
@@ -272,7 +286,7 @@ export async function forceCheckForNewTransactions(): Promise<void> {
 
 // Функция для сброса данных уведомлений (для тестирования)
 export async function resetNotificationData(): Promise<void> {
-  const currentRowCount = await getRowCount();
+  const currentRowCount = await getRowCountSafe();
   await updateNotificationData({
     lastRowCount: currentRowCount,
     lastChecked: new Date()
