@@ -5,11 +5,16 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:debug": "tsx --inspect src/index.ts",
     "build": "tsc",
+    "build:watch": "tsc --watch",
     "start": "node dist/index.js",
+    "start:debug": "node --inspect dist/index.js",
     "clean": "rm -rf dist",
     "deploy:vps": "./scripts/deploy-vps.sh",
-    "update:vps": "./scripts/update-vps.sh"
+    "update:vps": "./scripts/update-vps.sh",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linter configured\" && exit 0"
   },
   "dependencies": {
     "telegraf": "^4.15.6",
@@ -27,4 +32,4 @@
   "engines": {
     "node": ">=18.0.0"
   }
-} 
+}

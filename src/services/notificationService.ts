@@ -36,6 +36,7 @@ export function stopNotificationService(): void {
   logger.info('🛑 Notification service stopped');
 }
 
+// Проверка новых транзакций
 async function checkForNewTransactions(): Promise<void> {
   try {
     logger.debug(`🔍 Checking for new transactions at ${new Date().toISOString()}`);
@@ -92,9 +93,10 @@ async function checkForNewTransactions(): Promise<void> {
   } catch (error) {
     logger.error('❌ Error checking for new transactions:', error as Error);
     logger.error(`❌ Error details: ${error instanceof Error ? error.message : String(error)}`);
-    // НЕ обновляем состояние уведомлений при ошибке API
-    // НЕ отправляем уведомления об удалении строк
-    // Просто логируем ошибку и ждем следующего цикла
+    
+    // При ошибке API НЕ обновляем состояние уведомлений
+    // Это предотвратит ложные уведомления об удалении
+    logger.warn('⚠️ API error detected - skipping notification state update to prevent false deletion alerts');
   }
 }
 

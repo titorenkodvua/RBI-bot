@@ -97,10 +97,16 @@ export async function getRowCount(): Promise<number | null> {
   }
 }
 
-// Функция для обратной совместимости (возвращает 0 при ошибке)
+// Функция для обратной совместимости (возвращает последнее известное значение при ошибке)
 export async function getRowCountSafe(): Promise<number> {
-  const count = await getRowCount();
-  return count ?? 0;
+  try {
+    const count = await getRowCount();
+    return count ?? 0;
+  } catch (error) {
+    logger.error('❌ Failed to get row count safely:', error as Error);
+    // При ошибке API возвращаем -1 чтобы показать что это ошибка, а не 0 транзакций
+    return -1;
+  }
 }
 
 export function parseSheetRowToTransactionRecord(row: string[], index: number): TransactionRecord | null {
@@ -158,11 +164,12 @@ export async function getAllTransactions(): Promise<TransactionRecord[]> {
       }
     }
 
-    // logger.debug(`✅ Successfully parsed ${records.length} transactions`);
+    logger.debug(`✅ Successfully parsed ${records.length} transactions`);
     return records;
   } catch (error) {
     logger.error('❌ Failed to get all transactions:', error as Error);
-    return [];
+    // Выбрасываем ошибку вместо возврата пустого массива
+    throw error;
   }
 }
 
@@ -172,7 +179,8 @@ export async function getRecentTransactions(count: number = 10): Promise<Transac
     return allTransactions.slice(-count).reverse(); // Показываем новые записи первыми
   } catch (error) {
     logger.error('❌ Failed to get recent transactions:', error as Error);
-    return [];
+    // Выбрасываем ошибку вместо возврата пустого массива
+    throw error;
   }
 }
 
