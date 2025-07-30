@@ -16,7 +16,7 @@ export function startNotificationService(): void {
   }
 
   logger.info(`📅 Starting notification service with interval: ${botConfig.notificationInterval}`);
-  
+
   cronTask = cron.schedule(botConfig.notificationInterval, async () => {
     await checkForNewTransactions();
   });
@@ -40,7 +40,7 @@ export function stopNotificationService(): void {
 async function checkForNewTransactions(): Promise<void> {
   try {
     logger.debug(`🔍 Checking for new transactions at ${new Date().toISOString()}`);
-    
+
     const allTransactions = await getAllTransactions();
     const currentRowCount = allTransactions.length;
     const notificationData = await getNotificationData();
@@ -54,7 +54,7 @@ async function checkForNewTransactions(): Promise<void> {
         lastRowCount: currentRowCount,
         lastChecked: new Date()
       });
-      
+
       return;
     }
 
@@ -64,7 +64,7 @@ async function checkForNewTransactions(): Promise<void> {
 
       // Получаем новые записи (последние добавленные)
       const newTransactions = allTransactions.slice(-newTransactionsCount);
-      
+
       if (newTransactions.length > 0) {
         await notifyUsersAboutNewTransactions(newTransactions);
       }
@@ -93,7 +93,7 @@ async function checkForNewTransactions(): Promise<void> {
   } catch (error) {
     logger.error('❌ Error checking for new transactions:', error as Error);
     logger.error(`❌ Error details: ${error instanceof Error ? error.message : String(error)}`);
-    
+
     // При ошибке API НЕ обновляем состояние уведомлений
     // Это предотвратит ложные уведомления об удалении
     logger.warn('⚠️ API error detected - skipping notification state update to prevent false deletion alerts');
@@ -103,7 +103,7 @@ async function checkForNewTransactions(): Promise<void> {
 async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<void> {
   try {
     const users = await getAllUsersWithNotifications();
-    
+
     if (users.length === 0) {
       logger.debug('📱 No users with notifications enabled');
       return;
@@ -112,14 +112,14 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
     for (const transaction of transactions) {
       // Получаем текущий баланс (после всех транзакций)
       const balanceAfter = await calculateBalance();
-      
+
       // Рассчитываем баланс до этой транзакции
       // Инвертируем текущую операцию чтобы получить баланс до неё
       const operationAmount = transaction.type === 'give' ? transaction.amount : -transaction.amount;
-      
+
       // Простая математика: балансДо = балансПосле - текущаяОперация
       let balanceBeforeAmount;
-      
+
       if (balanceAfter.amount === 0) {
         // Если текущий баланс 0, то до операции был противоположный
         balanceBeforeAmount = -operationAmount;
@@ -133,7 +133,7 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
           balanceBeforeAmount = balanceAfter.amount - operationAmount;
         }
       }
-      
+
       // Создаем объект баланса до операции
       let balanceBefore;
       if (balanceBeforeAmount === 0) {
@@ -160,7 +160,7 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
           description: `${botConfig.participants.dmitry} должен ${botConfig.participantsDative.alexander}`
         };
       }
-      
+
       // Форматируем баланс для отображения (только цифры со знаком)
       const formatBalance = (balance: { debtor: string; creditor: string; amount: number; description: string }) => {
         if (balance.amount === 0) {
@@ -175,7 +175,7 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
         });
         return `${sign}${botConfig.currency.symbol}${formattedAmount}`;
       };
-      
+
       // Создаем математическую формулу
       const balanceBeforeStr = formatBalance(balanceBefore);
       const balanceAfterStr = formatBalance(balanceAfter);
@@ -184,21 +184,21 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       })}`;
-      
+
       const message = `
 🔔 Новая транзакция:
 ${formatTransactionInput({ amount: transaction.amount, description: transaction.description, type: transaction.type })}
 📅 ${transaction.date}
 
-${transaction.type === 'give' ? 
-  `💰 ${botConfig.participants.dmitry} → ${botConfig.participants.alexander}: ${botConfig.currency.symbol}${transaction.amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}` : 
-  `💸 ${botConfig.participants.alexander} → ${botConfig.participants.dmitry}: ${botConfig.currency.symbol}${transaction.amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`}
+${transaction.type === 'give' ?
+          `💰 ${botConfig.participants.dmitry} → ${botConfig.participants.alexander}: ${botConfig.currency.symbol}${transaction.amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}` :
+          `💸 ${botConfig.participants.alexander} → ${botConfig.participants.dmitry}: ${botConfig.currency.symbol}${transaction.amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}`}
 
 Баланс:
 ${balanceBeforeStr} ${operationSign} ${operationAmountStr} = 
@@ -208,7 +208,7 @@ ${balanceAfterStr}
       for (const user of users) {
         try {
           await bot.telegram.sendMessage(user.telegramId, message);
-          
+
           if (botConfig.debug) {
             logger.info(`📤 Notification sent to ${user.firstName} (${user.telegramId})`);
           }
@@ -227,7 +227,7 @@ ${balanceAfterStr}
 async function notifyUsersAboutDeletedTransactions(deletedCount: number, currentCount: number): Promise<void> {
   try {
     const users = await getAllUsersWithNotifications();
-    
+
     if (users.length === 0) {
       logger.debug('📱 No users with notifications enabled');
       return;
@@ -235,7 +235,7 @@ async function notifyUsersAboutDeletedTransactions(deletedCount: number, current
 
     // Получаем текущий баланс после удаления
     const currentBalance = await calculateBalance();
-    
+
     // Форматируем баланс для отображения
     const formatBalance = (balance: { debtor: string; creditor: string; amount: number; description: string }) => {
       if (balance.amount === 0) {
@@ -248,9 +248,9 @@ async function notifyUsersAboutDeletedTransactions(deletedCount: number, current
       });
       return `${sign}${botConfig.currency.symbol}${formattedAmount}`;
     };
-    
+
     const balanceStr = formatBalance(currentBalance);
-    
+
     const message = `
 🗑️ Удалены транзакции из таблицы:
 Количество удаленных записей: ${deletedCount}
@@ -262,7 +262,7 @@ async function notifyUsersAboutDeletedTransactions(deletedCount: number, current
     for (const user of users) {
       try {
         await bot.telegram.sendMessage(user.telegramId, message);
-        
+
         if (botConfig.debug) {
           logger.info(`📤 Deletion notification sent to ${user.firstName} (${user.telegramId})`);
         }

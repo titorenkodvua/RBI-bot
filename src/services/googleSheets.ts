@@ -23,7 +23,7 @@ export async function initializeGoogleSheets(): Promise<void> {
     });
 
     sheetsService = google.sheets({ version: 'v4', auth });
-    
+
     logger.info('✅ Google Sheets API initialized');
   } catch (error) {
     logger.error('❌ Failed to initialize Google Sheets:', error as Error);
@@ -34,12 +34,12 @@ export async function initializeGoogleSheets(): Promise<void> {
 export async function addTransactionRecord(record: TransactionRecord): Promise<void> {
   try {
     const range = `${botConfig.sheetName}!A:D`;
-    
+
     // Правильно форматируем число для Google Sheets
-    const formattedAmount = record.type === 'give' 
+    const formattedAmount = record.type === 'give'
       ? formatNumberForSheets(record.amount)
       : formatNumberForSheets(-record.amount);
-    
+
     const values = [[
       record.date,
       record.user,
@@ -67,7 +67,7 @@ export async function getSheetData(): Promise<SheetData> {
   try {
     const range = `${botConfig.sheetName}!A:D`;
     logger.debug(`🟡 Google Sheets API request: ${range} at ${new Date().toISOString()}`);
-    
+
     const response = await sheetsService.spreadsheets.values.get({
       spreadsheetId: botConfig.spreadsheetId,
       range
@@ -116,7 +116,7 @@ export function parseSheetRowToTransactionRecord(row: string[], index: number): 
   }
 
   const [date, user, amountStr, description] = row;
-  
+
   // Заменяем запятую на точку для корректного парсинга чисел из Google Sheets
   const normalizedAmountStr = amountStr.replace(/\s+/g, '').replace(',', '.');
   const amount = parseFloat(normalizedAmountStr);
@@ -146,14 +146,14 @@ export async function getAllTransactions(): Promise<TransactionRecord[]> {
     // Проверяем первую строку - заголовок это или данные
     if (data.values.length > 0) {
       const firstRow = data.values[0];
-      
+
       // Если первая строка содержит заголовки (Date, User, Amount, Description), пропускаем её
-      const hasHeaders = firstRow.length >= 4 && 
-                        (firstRow[0].toLowerCase().includes('date') || 
-                         firstRow[1].toLowerCase().includes('user') ||
-                         firstRow[2].toLowerCase().includes('amount') ||
-                         firstRow[3].toLowerCase().includes('description'));
-      
+      const hasHeaders = firstRow.length >= 4 &&
+        (firstRow[0].toLowerCase().includes('date') ||
+          firstRow[1].toLowerCase().includes('user') ||
+          firstRow[2].toLowerCase().includes('amount') ||
+          firstRow[3].toLowerCase().includes('description'));
+
       const dataRows = hasHeaders ? data.values.slice(1) : data.values;
 
       for (let i = 0; i < dataRows.length; i++) {
@@ -199,14 +199,14 @@ export async function calculateBalance(): Promise<{ debtor: string; creditor: st
   try {
     const allTransactions = await getAllTransactions();
     let totalBalance = 0;
-    
+
     for (const record of allTransactions) {
       // Если тип 'give' - значит положительная сумма (Дмитрий -> Александр)
       // Если тип 'take' - значит отрицательная сумма (Александр -> Дмитрий)
       const amount = record.type === 'give' ? record.amount : -record.amount;
       totalBalance += amount;
     }
-    
+
     if (totalBalance > 0) {
       // Положительный баланс = Александр должен Дмитрию
       return {
