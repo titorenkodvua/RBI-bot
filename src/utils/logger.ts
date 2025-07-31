@@ -56,13 +56,24 @@ class Logger {
   }
 }
 
-// Создаем глобальный экземпляр логгера
-const debugEnabled = process.env.DEBUG === 'true';
-console.log('🔍 Logger initialization:');
-console.log('DEBUG env:', process.env.DEBUG);
-console.log('debugEnabled:', debugEnabled);
-console.log('LogLevel:', debugEnabled ? 'DEBUG' : 'INFO');
+// Создаем логгер с правильным уровнем после загрузки .env
+function createLogger(): Logger {
+  const debugEnabled = process.env.DEBUG === 'true';
+  console.log('🔍 Logger initialization:');
+  console.log('DEBUG env:', process.env.DEBUG);
+  console.log('debugEnabled:', debugEnabled);
+  console.log('LogLevel:', debugEnabled ? 'DEBUG' : 'INFO');
 
-export const logger = new Logger(
-  debugEnabled ? LogLevel.DEBUG : LogLevel.INFO
-); 
+  return new Logger(debugEnabled ? LogLevel.DEBUG : LogLevel.INFO);
+}
+
+// Экспортируем функцию создания логгера
+export { createLogger };
+
+// Создаем глобальный экземпляр логгера (будет пересоздан после загрузки .env)
+export let logger = new Logger(LogLevel.INFO);
+
+// Функция для инициализации логгера после загрузки .env
+export function initializeLogger(): void {
+  logger = createLogger();
+} 

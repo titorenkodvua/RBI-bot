@@ -3,12 +3,15 @@ import { connectDatabase, disconnectDatabase } from './database/fileStorage';
 import { initializeGoogleSheets } from './services/googleSheets';
 import { startNotificationService, stopNotificationService } from './services/notificationService';
 import { bot } from './bot';
-import { logger } from './utils/logger';
+import { logger, initializeLogger } from './utils/logger';
 
 // Временный лог для проверки переменных окружения
 console.log('🔍 Environment check:');
 console.log('DEBUG env:', process.env.DEBUG);
 console.log('NODE_ENV:', process.env.NODE_ENV);
+
+// Инициализируем логгер после загрузки .env
+initializeLogger();
 
 async function startBot() {
   try {
