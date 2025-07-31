@@ -1,5 +1,5 @@
 import * as cron from 'node-cron';
-import { getRowCountSafe, getAllTransactions, calculateBalance } from './googleSheets';
+import { getAllTransactions, calculateBalance } from './googleSheets';
 import { getNotificationData, updateNotificationData, getAllUsersWithNotifications } from '../database/fileStorage';
 import { bot } from '../bot';
 import { botConfig } from '../config';
@@ -285,10 +285,16 @@ export async function forceCheckForNewTransactions(): Promise<void> {
 
 // Функция для сброса данных уведомлений (для тестирования)
 export async function resetNotificationData(): Promise<void> {
-  const currentRowCount = await getRowCountSafe();
-  await updateNotificationData({
-    lastRowCount: currentRowCount,
-    lastChecked: new Date()
-  });
-  logger.info('🔄 Notification data reset');
+  try {
+    const allTransactions = await getAllTransactions();
+    const currentRowCount = allTransactions.length;
+    await updateNotificationData({
+      lastRowCount: currentRowCount,
+      lastChecked: new Date()
+    });
+    logger.info('🔄 Notification data reset');
+  } catch (error) {
+    logger.error('❌ Failed to reset notification data:', error as Error);
+    // При ошибке API не обновляем состояние
+  }
 } 

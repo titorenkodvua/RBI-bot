@@ -63,7 +63,8 @@ export async function addTransactionRecord(record: TransactionRecord): Promise<v
   }
 }
 
-export async function getSheetData(): Promise<SheetData> {
+// Получение данных из таблицы
+async function getSheetData(): Promise<SheetData> {
   try {
     const range = `${botConfig.sheetName}!A:D`;
     logger.debug(`🟡 Google Sheets API request: ${range} at ${new Date().toISOString()}`);
@@ -84,28 +85,6 @@ export async function getSheetData(): Promise<SheetData> {
     logger.error('❌ Failed to get sheet data:', error as Error);
     logger.error(`❌ Error details: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
-  }
-}
-
-export async function getRowCount(): Promise<number | null> {
-  try {
-    const data = await getSheetData();
-    return data.values.length;
-  } catch (error) {
-    logger.error('❌ Failed to get row count:', error as Error);
-    return null; // Возвращаем null вместо 0 при ошибке
-  }
-}
-
-// Функция для обратной совместимости (возвращает последнее известное значение при ошибке)
-export async function getRowCountSafe(): Promise<number> {
-  try {
-    const count = await getRowCount();
-    return count ?? 0;
-  } catch (error) {
-    logger.error('❌ Failed to get row count safely:', error as Error);
-    // При ошибке API возвращаем -1 чтобы показать что это ошибка, а не 0 транзакций
-    return -1;
   }
 }
 
@@ -184,53 +163,34 @@ export async function getRecentTransactions(count: number = 10): Promise<Transac
   }
 }
 
-export function formatTransactionForMessage(record: TransactionRecord): string {
-  const emoji = record.type === 'give' ? '💰' : '💸';
-  const sign = record.type === 'give' ? '+' : '-';
-  const action = record.type === 'give' ? 'даёт' : 'берёт';
-  const formattedAmount = record.amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-  return `${emoji} ${sign}${botConfig.currency.symbol}${formattedAmount} - ${record.description}\n👤 ${record.user} ${action} | 📅 ${record.date}`;
-}
-
 export async function calculateBalance(): Promise<{ debtor: string; creditor: string; amount: number; description: string }> {
   try {
-    const allTransactions = await getAllTransactions();
-    let totalBalance = 0;
+    const transactions = await getAllTransactions();
 
-    for (const record of allTransactions) {
-      // Если тип 'give' - значит положительная сумма (Дмитрий -> Александр)
-      // Если тип 'take' - значит отрицательная сумма (Александр -> Дмитрий)
-      const amount = record.type === 'give' ? record.amount : -record.amount;
-      totalBalance += amount;
+    let balance = 0;
+
+    for (const transaction of transactions) {
+      if (transaction.type === 'give') {
+        balance += transaction.amount;
+      } else {
+        balance -= transaction.amount;
+      }
     }
 
-    if (totalBalance > 0) {
-      // Положительный баланс = Александр должен Дмитрию
-      return {
-        debtor: botConfig.participants.alexander,
-        creditor: botConfig.participants.dmitry,
-        amount: totalBalance,
-        description: `${botConfig.participants.alexander} должен ${botConfig.participantsDative.dmitry}`
-      };
-    } else if (totalBalance < 0) {
-      // Отрицательный баланс = Дмитрий должен Александру
-      return {
-        debtor: botConfig.participants.dmitry,
-        creditor: botConfig.participants.alexander,
-        amount: Math.abs(totalBalance),
-        description: `${botConfig.participants.dmitry} должен ${botConfig.participantsDative.alexander}`
-      };
-    } else {
-      return {
-        debtor: '',
-        creditor: '',
-        amount: 0,
-        description: 'Баланс равен нулю'
-      };
-    }
+    const debtor = balance > 0 ? botConfig.participants.dmitry : botConfig.participants.alexander;
+    const creditor = balance > 0 ? botConfig.participants.alexander : botConfig.participants.dmitry;
+    const description = balance > 0
+      ? `${botConfig.participants.alexander} должен ${botConfig.participants.dmitry}`
+      : `${botConfig.participants.dmitry} должен ${botConfig.participants.alexander}`;
+
+    logger.debug(`💰 Balance calculated: ${balance} (${debtor} owes)`);
+
+    return {
+      debtor,
+      creditor,
+      amount: Math.abs(balance),
+      description
+    };
   } catch (error) {
     logger.error('❌ Failed to calculate balance:', error as Error);
     throw error;

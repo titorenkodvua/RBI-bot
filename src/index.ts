@@ -5,31 +5,36 @@ import { startNotificationService, stopNotificationService } from './services/no
 import { bot } from './bot';
 import { logger } from './utils/logger';
 
+// Временный лог для проверки переменных окружения
+console.log('🔍 Environment check:');
+console.log('DEBUG env:', process.env.DEBUG);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+
 async function startBot() {
   try {
     logger.info('🤖 Starting RBI Bot...');
-    
+
     // Проверяем конфигурацию
     validateConfig();
-    
+
     // Подключаемся к MongoDB
     await connectDatabase();
-    
+
     // Инициализируем Google Sheets API
     await initializeGoogleSheets();
-    
+
     // Запускаем сервис уведомлений
     startNotificationService();
-    
+
     // Запускаем бота
     await bot.launch();
-    
+
     logger.info('✅ RBI Bot started successfully!');
-    
+
     // Обработка graceful shutdown
     process.once('SIGINT', () => gracefulShutdown('SIGINT'));
     process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    
+
   } catch (error) {
     logger.error('❌ Failed to start bot:', error as Error);
     process.exit(1);
@@ -38,17 +43,17 @@ async function startBot() {
 
 async function gracefulShutdown(signal: string) {
   logger.info(`\n🛑 Received ${signal}, shutting down gracefully...`);
-  
+
   try {
     // Останавливаем сервис уведомлений
     stopNotificationService();
-    
+
     // Останавливаем бота
     await bot.stop(signal);
-    
+
     // Отключаемся от базы данных
     await disconnectDatabase();
-    
+
     logger.info('✅ Shutdown completed');
     process.exit(0);
   } catch (error) {

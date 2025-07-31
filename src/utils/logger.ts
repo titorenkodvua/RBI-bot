@@ -57,6 +57,12 @@ class Logger {
 }
 
 // Создаем глобальный экземпляр логгера
+const debugEnabled = process.env.DEBUG === 'true';
+console.log('🔍 Logger initialization:');
+console.log('DEBUG env:', process.env.DEBUG);
+console.log('debugEnabled:', debugEnabled);
+console.log('LogLevel:', debugEnabled ? 'DEBUG' : 'INFO');
+
 export const logger = new Logger(
-  process.env.DEBUG === 'true' ? LogLevel.DEBUG : LogLevel.INFO
+  debugEnabled ? LogLevel.DEBUG : LogLevel.INFO
 ); 
