@@ -1,5 +1,4 @@
 import { User, NotificationData } from '../types';
-import { logger } from '../utils/logger';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -55,28 +54,6 @@ async function saveNotificationData(data: NotificationData): Promise<void> {
   await fs.writeFile(NOTIFICATIONS_FILE, JSON.stringify(data, null, 2));
 }
 
-// Подключение к базе данных
-export async function connectDatabase(): Promise<void> {
-  try {
-    // Создаем директории если их нет
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    
-    logger.info('✅ Using file storage (JSON files)');
-  } catch (error) {
-    logger.error('❌ Failed to connect to database:', error as Error);
-    throw error;
-  }
-}
-
-// Отключение от базы данных
-export async function disconnectDatabase(): Promise<void> {
-  try {
-    logger.info('👋 File storage disconnected');
-  } catch (error) {
-    logger.error('❌ Error disconnecting from database:', error as Error);
-  }
-}
-
 export async function findUserByTelegramId(telegramId: number): Promise<User | null> {
   const users = await readUsers();
   return users.find(user => user.telegramId === telegramId) || null;
@@ -89,7 +66,7 @@ export async function createUser(userData: Omit<User, 'createdAt' | 'updatedAt'>
     createdAt: new Date(),
     updatedAt: new Date()
   };
-  
+
   users.push(newUser);
   await saveUsers(users);
   return newUser;
@@ -98,11 +75,11 @@ export async function createUser(userData: Omit<User, 'createdAt' | 'updatedAt'>
 export async function updateUser(telegramId: number, updates: Partial<User>): Promise<User | null> {
   const users = await readUsers();
   const userIndex = users.findIndex(user => user.telegramId === telegramId);
-  
+
   if (userIndex === -1) {
     return null;
   }
-  
+
   users[userIndex] = { ...users[userIndex], ...updates, updatedAt: new Date() };
   await saveUsers(users);
   return users[userIndex];

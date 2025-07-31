@@ -1,8 +1,6 @@
-import { validateConfig } from './config';
-import { connectDatabase, disconnectDatabase } from './database/fileStorage';
+import { bot } from './bot';
 import { initializeGoogleSheets } from './services/googleSheets';
 import { startNotificationService, stopNotificationService } from './services/notificationService';
-import { bot } from './bot';
 import { logger, initializeLogger } from './utils/logger';
 
 // Временный лог для проверки переменных окружения
@@ -16,12 +14,6 @@ initializeLogger();
 async function startBot() {
   try {
     logger.info('🤖 Starting RBI Bot...');
-
-    // Проверяем конфигурацию
-    validateConfig();
-
-    // Подключаемся к MongoDB
-    await connectDatabase();
 
     // Инициализируем Google Sheets API
     await initializeGoogleSheets();
@@ -53,9 +45,6 @@ async function gracefulShutdown(signal: string) {
 
     // Останавливаем бота
     await bot.stop(signal);
-
-    // Отключаемся от базы данных
-    await disconnectDatabase();
 
     logger.info('✅ Shutdown completed');
     process.exit(0);
