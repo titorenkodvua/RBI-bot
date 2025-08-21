@@ -2,6 +2,7 @@ import { bot } from './bot';
 import { initializeGoogleSheets } from './services/googleSheets';
 import { startNotificationService, stopNotificationService } from './services/notificationService';
 import { logger, initializeLogger } from './utils/logger';
+import { validateConfig } from './config';
 
 // Временный лог для проверки переменных окружения
 console.log('🔍 Environment check:');
@@ -14,6 +15,9 @@ initializeLogger();
 async function startBot() {
   try {
     logger.info('🤖 Starting RBI Bot...');
+
+    // Проверяем конфигурацию (включая вайтлист)
+    validateConfig();
 
     // Инициализируем Google Sheets API
     await initializeGoogleSheets();
