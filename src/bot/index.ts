@@ -69,11 +69,30 @@ function getUserState(user: User): UserState {
   return user.state || 'idle';
 }
 
+// Middleware для проверки вайтлиста пользователей
+bot.use(async (ctx, next) => {
+  if (!ctx.from) return;
+
+  const telegramId = ctx.from.id;
+
+  // Проверяем вайтлист
+  if (botConfig.allowedUsers.length > 0 && !botConfig.allowedUsers.includes(telegramId)) {
+    logger.warn(`🚫 Access denied for user ${telegramId} (@${ctx.from.username}) - not in whitelist`);
+    await ctx.reply('❌ Доступ запрещен. Вы не авторизованы для использования этого бота.');
+    return;
+  }
+
+  // Если пользователь в вайтлисте, продолжаем
+  return next();
+});
+
 // Middleware для проверки пользователя
 bot.use(async (ctx, next) => {
   if (!ctx.from) return;
 
   const telegramId = ctx.from.id;
+
+  // Проверяем существующего пользователя
   let user = await findUserByTelegramId(telegramId);
 
   if (!user) {
