@@ -33,6 +33,7 @@ export type BotConfig = {
   sheetName: string;
   notificationInterval: string;
   debug: boolean;
+  allowedUsers: number[];
   participants: {
     dmitry: string;
     alexander: string;
