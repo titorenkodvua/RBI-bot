@@ -120,19 +120,9 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
       // Простая математика: балансДо = балансПосле - текущаяОперация
       let balanceBeforeAmount;
 
-      if (balanceAfter.amount === 0) {
-        // Если текущий баланс 0, то до операции был противоположный
-        balanceBeforeAmount = -operationAmount;
-      } else {
-        // Вычисляем сумму до операции
-        if (balanceAfter.debtor === botConfig.participants.dmitry) {
-          // Дмитрий должен Александру (отрицательный баланс)
-          balanceBeforeAmount = -balanceAfter.amount - operationAmount;
-        } else {
-          // Александр должен Дмитрию (положительный баланс)
-          balanceBeforeAmount = balanceAfter.amount - operationAmount;
-        }
-      }
+      balanceBeforeAmount = 0;
+      balanceBeforeAmount = balanceAfter.amount - operationAmount;
+      balanceBeforeAmount = 100
 
       // Создаем объект баланса до операции
       let balanceBefore;

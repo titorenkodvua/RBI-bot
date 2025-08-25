@@ -3,6 +3,7 @@ import { initializeGoogleSheets } from './services/googleSheets';
 import { startNotificationService, stopNotificationService } from './services/notificationService';
 import { logger, initializeLogger } from './utils/logger';
 import { validateConfig } from './config';
+import { disableNotificationsForUnauthorizedUsers } from './database/fileStorage';
 
 // Временный лог для проверки переменных окружения
 console.log('🔍 Environment check:');
@@ -18,6 +19,9 @@ async function startBot() {
 
     // Проверяем конфигурацию (включая вайтлист)
     validateConfig();
+
+    // Отключаем уведомления у неавторизованных пользователей
+    await disableNotificationsForUnauthorizedUsers();
 
     // Инициализируем Google Sheets API
     await initializeGoogleSheets();

@@ -1,6 +1,7 @@
 import { User, NotificationData } from '../types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { botConfig } from '../config';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -87,6 +88,16 @@ export async function updateUser(telegramId: number, updates: Partial<User>): Pr
 
 export async function getAllUsersWithNotifications(): Promise<User[]> {
   const users = await readUsers();
+
+  // Фильтруем пользователей по вайтлисту
+  if (botConfig.allowedUsers.length > 0) {
+    const whitelistedUsers = users.filter(user =>
+      botConfig.allowedUsers.includes(user.telegramId) && user.notificationsEnabled
+    );
+    return whitelistedUsers;
+  }
+
+  // Если вайтлист не настроен, возвращаем всех пользователей с включенными уведомлениями
   return users.filter(user => user.notificationsEnabled);
 }
 
@@ -96,4 +107,25 @@ export async function getNotificationData(): Promise<NotificationData | null> {
 
 export async function updateNotificationData(data: NotificationData): Promise<void> {
   await saveNotificationData(data);
+}
+
+// Функция для отключения уведомлений у неавторизованных пользователей
+export async function disableNotificationsForUnauthorizedUsers(): Promise<void> {
+  if (botConfig.allowedUsers.length === 0) {
+    return; // Если вайтлист не настроен, ничего не делаем
+  }
+
+  const users = await readUsers();
+  let updated = false;
+
+  for (const user of users) {
+    if (!botConfig.allowedUsers.includes(user.telegramId) && user.notificationsEnabled) {
+      user.notificationsEnabled = false;
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    await saveUsers(users);
+  }
 } 
