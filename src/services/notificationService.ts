@@ -120,10 +120,7 @@ async function notifyUsersAboutNewTransactions(transactions: any[]): Promise<voi
       // Простая математика: балансДо = балансПосле - текущаяОперация
       let balanceBeforeAmount;
 
-      balanceBeforeAmount = 0;
       balanceBeforeAmount = balanceAfter.amount - operationAmount;
-      balanceBeforeAmount = 100
-
       // Создаем объект баланса до операции
       let balanceBefore;
       if (balanceBeforeAmount === 0) {
